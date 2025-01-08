@@ -20,13 +20,15 @@ import video_retreve from "./middlewares/videoretreve.js"
 import getUserChannelProfile from "./controllers/followers.contollers.js"
 import unfollowUser from "./controllers/followersdecrese.js"
 import followUser from "./controllers/followersincrese.js"
+import messageRoutes from "./routes/message.routes.js"
+import { app, server } from "./socket/socket.js"
 
 // load the .env file 
 dotenv.config({ path: './.env' })
 
 // express to handle the route and listening
 
-const app = express()
+// const app = express()
 
 // to allow cross-origin access
 
@@ -211,6 +213,10 @@ app.post("/api/upload/video",verifyJwt, video_upload.single("file"), async (req,
         return res.status(500).send("File upload failed")
     }
 })
+
+// message function calling on a specific route
+
+app.use("/api/messages", messageRoutes)
 
 // File retreve function calling on a specific route
 
