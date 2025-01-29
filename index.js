@@ -21,6 +21,7 @@ import getUserChannelProfile from "./controllers/followers.contollers.js"
 import unfollowUser from "./controllers/followersdecrese.js"
 import followUser from "./controllers/followersincrese.js"
 import messageRoutes from "./routes/message.routes.js"
+import conversationRoutes from "./routes/conversation.routes.js"
 import { app, server } from "./socket/socket.js"
 
 // load the .env file 
@@ -217,6 +218,9 @@ app.post("/api/upload/video",verifyJwt, video_upload.single("file"), async (req,
 // message function calling on a specific route
 
 app.use("/api/messages", messageRoutes)
+
+
+app.use("/api/conversations", conversationRoutes)
 
 // File retreve function calling on a specific route
 
