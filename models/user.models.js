@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
- 
 
 // User Schema = user data base kesa dikhna chiye and uss mai kon kon se fields honi chaiye
 const userSchema = new mongoose.Schema({
@@ -18,7 +17,6 @@ const userSchema = new mongoose.Schema({
     email: {
         type: String,
         required: true,
-        
     },
     password: {
         type: String,
@@ -30,18 +28,18 @@ const userSchema = new mongoose.Schema({
     },
     about: {
         type: String,
-        required:true
+        required: true
     },
     avatar: {
         type: String,
         required: true,
     },
     accessToken: {
-        type: String
+        type: String,
+        default: null // ✅ Added default to null to indicate no active token initially
     }
-    
-})
+});
 
 // User Model
-const User = mongoose.model("User", userSchema)
-export default User
+const User = mongoose.model("User", userSchema);
+export default User;

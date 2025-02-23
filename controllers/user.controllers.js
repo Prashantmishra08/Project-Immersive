@@ -1,26 +1,25 @@
-import User from "../models/user.models.js"
+import User from "../models/user.models.js";
 
-// ye function user ke cookies mai store accessToken ko clear kr dega jis ke karan vo fir kuch bhi access nhi kr payega and
-// and logout ho jyega 
+const logOutUser = async (req, res) => {
+  try {
+    const token = req.cookies.accessToken || req.headers.authorization?.split(" ")[1];
 
-const logOutUser=async(req,res)=>{
-    await User.findByIdAndUpdate(
-        req.user._id,
-        {
-            $unset:{
-                accessToken:1
-            }
-        },
-        {
-            new:true
-        }
-    )
-    const options={
-        httpOnly:true,
-        secure:true
+    if (!token) {
+      return res.status(400).json({ message: "No token provided" });
     }
 
-    return res.status(200).clearCookie("accessToken",options).json({message:"logout sucessfull"})
-}
+    // ✅ Invalidate token by removing it from the database
+    await User.findOneAndUpdate({ accessToken: token }, { $unset: { accessToken: 1 } });
 
-export default logOutUser
+    // ✅ Clear the cookie
+    return res.status(200)
+      .clearCookie("accessToken", { httpOnly: true, secure: true })
+      .json({ message: "Logout successful" });
+
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: "Internal Server Error" });
+  }
+};
+
+export default logOutUser;
