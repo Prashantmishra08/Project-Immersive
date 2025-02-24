@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import axios from "axios";
+import { useAuthContext } from "../context/AuthContext";
 
 const PostCard = ({ post }) => {
   const [likes, setLikes] = useState(post.likes.length || 0);
@@ -7,6 +8,7 @@ const PostCard = ({ post }) => {
   const [comments, setComments] = useState(post.comments || []);
   const [newComment, setNewComment] = useState("");
   const [showComments, setShowComments] = useState(false); // ✅ Toggle state for comments
+  const { authUser } = useAuthContext();
 
   // ✅ Handle Like/Unlike Functionality
   const handleLike = async () => {
@@ -55,6 +57,17 @@ const PostCard = ({ post }) => {
       console.error("Error adding comment:", error);
     }
   };
+  const reportPost = async () => {
+    const reason = prompt("Enter reason for reporting this post:");
+    if (!reason) return;
+    
+    try {
+      await axios.post(`http://localhost:3000/api/reports/post/${post._id}`, { reason }, { withCredentials: true });
+      alert("Post reported successfully!");
+    } catch (error) {
+      alert("Error reporting post");
+    }
+  };
 
   return (
     <div className="bg-white shadow-lg rounded-lg overflow-hidden mb-4 max-w-md mx-auto">
@@ -64,6 +77,7 @@ const PostCard = ({ post }) => {
         <div className="ml-2">
           <p className="font-semibold">{post.username}</p>
         </div>
+        <button onClick={reportPost} className="report-btn">Report</button>
       </div>
 
       {/* Post Image */}

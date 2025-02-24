@@ -28,6 +28,11 @@ import conversationRoutes from "./routes/conversation.routes.js"
 import { app, server } from "./socket/socket.js"
 import fileUpload from "express-fileupload"
 import Post from "./models/post.model.js"
+import protect from "./middlewares/protect.js"
+import adminProtect from "./middlewares/adminProtect.js"
+import verifyAdmin from "./middlewares/verifyAdmin.js"
+import verifyToken from "./middlewares/verifyToken.js"
+import { reportPost, reportUser, getReports, deleteReport } from "./controllers/report.controller.js"
 
 // load the .env file 
 dotenv.config({ path: './.env' })
@@ -150,8 +155,74 @@ app.post("/api/login", async (req, res) => {
 });
 
 
+// Admin Login
+// const ADMIN_EMAIL = "admin@gmail.com";
+// const ADMIN_PASSWORD = "admin";
+// app.post("/api/admin/login", async (req, res) => {
   
-  
+//   try {
+//     const { email, password } = req.body;
+
+//     // ✅ Check if email matches hardcoded admin email
+//     if (email !== ADMIN_EMAIL) {
+//       return res.status(401).json({ error: "Unauthorized: Invalid admin email" });
+//     }
+
+//     // ✅ Check if password is correct
+//     const isMatch = password === ADMIN_PASSWORD;
+//     if (!isMatch) {
+//       return res.status(401).json({ error: "Unauthorized: Invalid password" });
+//     }
+
+//     // ✅ Generate JWT Token
+//     const token = jwt.sign({ role: "admin" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+//     console.log("JWT_SECRET:", process.env.JWT_SECRET);
+
+//     res.cookie("adminToken", token, { httpOnly: true, secure: false });
+//     res.json({ message: "Admin logged in successfully", token });
+//   } catch (err) {
+//     console.error("Admin Login Error:", err);
+//     res.status(500).json({ error: "Internal Server Error" });
+//   }
+// });
+app.post("/api/admin/login", async (req, res) => {
+  const { email, password } = req.body;
+
+  // Static admin details (change if using a database)
+  const adminEmail = "admin@example.com";
+  const adminPassword = "securepassword";
+
+  if (email !== adminEmail || password !== adminPassword) {
+    return res.status(401).json({ message: "Invalid email or password" });
+  }
+
+  const token = jwt.sign({ email, role: "admin" }, process.env.JWT_SECRET, { expiresIn: "1h" });
+
+  res.json({ message: "Admin logged in", token, admin: { email, role: "admin" } });
+});
+
+app.get("/api/auth/me", verifyToken, async (req, res) => {
+  try {
+    if (req.user.role === "admin") {
+      return res.json({
+        user: {
+          id: "admin_id",
+          role: "admin",
+          email: "admin@example.com",
+        },
+      });
+    }
+
+    const user = await User.findById(req.user.id).select("-password"); // Remove password for security
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json({ user });
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
 
 // cloudinary configuration for file uploaing on clouds
 
@@ -596,27 +667,125 @@ app.post('/api/collections/images',verifyJwt,async(req,res)=>{
 
 // For Admin
 
-app.get("/api/users", async (req, res) => {
+app.get("/api/users", verifyAdmin, async (req, res) => {
+  try {
+    const users = await User.find({}, "userName email role banned");
+    res.json(users);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Delete User
+app.delete("/api/users/:id", verifyAdmin, async (req, res) => {
+  try {
+    await User.findByIdAndDelete(req.params.id);
+    res.json({ message: "User deleted successfully" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+// Update User Role
+app.put("/api/users/:id/role", verifyAdmin, async (req, res) => {
+  try {
+    const { role } = req.body;
+    await User.findByIdAndUpdate(req.params.id, { role });
+    res.json({ message: "User role updated" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+});
+
+app.put("/api/users/:id/ban", verifyAdmin, async (req, res) => {
     try {
-      const users = await User.find({}, "userName fullName email profession about avatar"); // ✅ Fetch only required fields
-      res.json(users);
+      const { banned } = req.body;
+      await User.findByIdAndUpdate(req.params.id, { banned });
+      res.json({ message: banned ? "User banned" : "User unbanned" });
     } catch (err) {
-      res.status(500).json({ message: err.message });
+      res.status(500).json({ error: "Server error" });
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+app.get("/api/posts", verifyAdmin, async (req, res) => {
     try {
-      await User.findByIdAndDelete(req.params.id);
-      res.json({ message: "User deleted successfully" });
+      const posts = await Post.find().populate("author", "userName email");
+      res.json(posts);
     } catch (err) {
-      res.status(500).json({ message: "Error deleting user" });
+      res.status(500).json({ error: "Server error" });
     }
   });
-  app.post("/api/admin/logout", (req, res) => {
-    res.clearCookie("token"); // Remove auth token (if using cookies)
-    res.json({ message: "Logged out successfully" });
+  
+  // Delete Post
+  app.delete("/api/posts/:id", verifyAdmin, async (req, res) => {
+    try {
+      await Post.findByIdAndDelete(req.params.id);
+      res.json({ message: "Post deleted successfully" });
+    } catch (err) {
+      res.status(500).json({ error: "Server error" });
+    }
   });
+  
+  // Block/Unblock Post
+  app.put("/api/posts/:id/block", verifyAdmin, async (req, res) => {
+    try {
+      const { blocked } = req.body;
+      await Post.findByIdAndUpdate(req.params.id, { blocked });
+      res.json({ message: blocked ? "Post blocked" : "Post unblocked" });
+    } catch (err) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  app.get("/api/stats", verifyAdmin, async (req, res) => {
+    try {
+      const usersCount = await User.countDocuments();
+      const bannedUsersCount = await User.countDocuments({ banned: true });
+      const postsCount = await Post.countDocuments();
+      
+      res.json({
+        users: usersCount,
+        bannedUsers: bannedUsersCount,
+        posts: postsCount
+      });
+    } catch (err) {
+      res.status(500).json({ error: "Server error" });
+    }
+  });
+
+  // User Reports a Post
+app.post("/api/reports/post/:postId", protect, reportPost);
+
+// User Reports another User
+app.post("/api/reports/user/:userId", protect, reportUser);
+
+// Fetch All Reports (For Admin)
+app.get("/api/reports", adminProtect, getReports);
+
+// Delete a Report (Admin Action)
+app.delete("/api/reports/:reportId", adminProtect, deleteReport);
+
+// app.get("/api/users", async (req, res) => {
+//     try {
+//       const users = await User.find({}, "userName fullName email profession about avatar"); // ✅ Fetch only required fields
+//       res.json(users);
+//     } catch (err) {
+//       res.status(500).json({ message: err.message });
+//     }
+//   });
+
+//   app.delete("/api/users/:id", async (req, res) => {
+//     try {
+//       await User.findByIdAndDelete(req.params.id);
+//       res.json({ message: "User deleted successfully" });
+//     } catch (err) {
+//       res.status(500).json({ message: "Error deleting user" });
+//     }
+//   });
+//   app.post("/api/admin/logout", (req, res) => {
+//     res.clearCookie("token"); // Remove auth token (if using cookies)
+//     res.json({ message: "Logged out successfully" });
+//   });
 
 // listener on specific port on which the server is running
 

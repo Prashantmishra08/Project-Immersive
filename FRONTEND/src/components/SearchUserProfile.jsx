@@ -1,13 +1,14 @@
 import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
+import { useAuthContext } from "../context/AuthContext";
 
 const SearchUserProfile = () => {
     const { userName } = useParams();
     const [userData, setUserData] = useState(null); // Ensure state exists
     const [showSubscribers, setShowSubscribers] = useState(false);
     const [showSubscribed, setShowSubscribed] = useState(false);
-
+    const { authUser } = useAuthContext();
     useEffect(() => {
         const fetchProfile = async () => {
             try {
@@ -32,6 +33,18 @@ const SearchUserProfile = () => {
 
         fetchProfile();
     }, [userName]);
+
+    const reportUser = async () => {
+        const reason = prompt("Enter reason for reporting this user:");
+        if (!reason) return;
+        
+        try {
+          await axios.post(`http://localhost:3000/api/reports/user/${user._id}`, { reason }, { withCredentials: true });
+          alert("User reported successfully!");
+        } catch (error) {
+          alert("Error reporting user");
+        }
+      };
 
     if (!userData) return <p>Loading profile...</p>; // Display loading state
 
@@ -62,6 +75,7 @@ const SearchUserProfile = () => {
                 <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
                     Subscribe
                 </button>
+                <button onClick={reportUser} className="report-btn">Report User</button>
 
                 {/* Subscribers Modal */}
             {showSubscribers && (

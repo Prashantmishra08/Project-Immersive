@@ -1,0 +1,12 @@
+import mongoose from "mongoose"
+
+const ReportSchema = new mongoose.Schema({
+  reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+  reportedPost: { type: mongoose.Schema.Types.ObjectId, ref: "Post", required: false },
+  reportedUser: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: false },
+  reason: { type: String, required: true },
+  createdAt: { type: Date, default: Date.now },
+});
+
+const Report = mongoose.model("Report", ReportSchema);
+export default Report;
