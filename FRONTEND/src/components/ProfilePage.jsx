@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import axios from "axios";
 import { FaCamera } from "react-icons/fa";
 import PostCard from "./PostCard"; // PostCard component import
+import { useNavigate } from "react-router-dom";
+import LeftSidebar from "./LeftSidebar.jsx";
+import useThemeStore from "../zustand/useThemeStore.js";
+
 
 const ProfilePage = () => {
     const [user, setUser] = useState(null);
@@ -19,7 +23,8 @@ const ProfilePage = () => {
         currentPassword: "",
         newPassword: ""
     });
-    const [profilePicture, setProfilePicture] = useState(null);
+    const { isDark } = useThemeStore();
+    const navigate = useNavigate();
 
     useEffect(() => {
         const fetchProfile = async () => {
@@ -116,37 +121,6 @@ const ProfilePage = () => {
         }
     };
     
-    const handleProfilePictureUpdate = async (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        setProfilePicture(file); // Update state for preview
-
-        const formData = new FormData();
-        formData.append("avatar", file);
-    
-        try {
-            const token = localStorage.getItem("token");
-            const response = await axios.put("http://localhost:3000/api/updateprofilepicture", formData, {
-                headers: { 
-                    Authorization: `Bearer ${token}`,
-                    "Content-Type": "multipart/form-data",
-                },
-                withCredentials: true,
-            });
-    
-            // Update UI instantly
-            setUser((prevUser) => ({
-                ...prevUser,
-                avatar: response.data.avatar,
-            }));
-    
-            alert("Profile picture updated successfully!");
-        } catch (error) {
-            console.error("Error updating profile picture:", error);
-            setError(error.response?.data?.message || "Failed to update profile picture.");
-        }
-    };
     
     
 
@@ -154,127 +128,70 @@ const ProfilePage = () => {
     if (error) return <p className="text-red-500">{error}</p>;
 
     return (
-        <div className="max-w-4xl mx-auto p-4">
-            <h2 className="text-2xl font-bold text-center">{user.userName}</h2>
-            <div className="flex flex-col items-center text-center space-y-4">
-                <div className="relative">
-                    <img src={user.avatar} alt="Profile" className="w-24 h-24 rounded-full" />
-                    <label htmlFor="profile-pic-upload" className="absolute bottom-0 right-0 bg-gray-800 text-white p-1 rounded-full cursor-pointer">
-                        <FaCamera size={16} />
-                        <input type="file" className="hidden" onChange={handleProfilePictureUpdate} />
-                    </label>
-                    <input 
-                        id="profile-pic-upload"
-                        type="file" 
-                        className="hidden"
-                        accept="image/*"
-                        onChange={handleProfilePictureUpdate}
-                     />
-                </div>
-                <h1 className="text-2xl font-bold">{user.fullName}</h1>
-                <p className="text-gray-500">{user.profession || "No profession specified"}</p>
-                <p className="text-gray-500">{user.about}</p>
-                <div className="flex space-x-4">
-                    <p 
-                        className="text-sm text-gray-700 cursor-pointer underline"
-                        onClick={() => setShowSubscribers(true)}
-                    >
-                        Subscribers: {user.subscribersCount}
-                    </p>
-                    <p 
-                        className="text-sm text-gray-700 cursor-pointer underline"
-                        onClick={() => setShowSubscribed(true)}
-                    >
-                        Subscribed: {user.channelsSubscribedToCount}
-                    </p>
-                </div>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600" onClick={() => setIsEditModalOpen(true)}>
-                    Edit Profile
-                </button>
-            </div>
-            {/* User Posts Section */}
-            <div className="mt-8">
-                <h3 className="text-xl font-semibold mb-4">Your Posts</h3>
-                {posts?.length > 0 ? (
-                    posts.map((post) => <PostCard key={post._id} post={post} />)
-                ) : (
-                    <p className="text-gray-500">No posts available.</p>
-                )}
-            </div>
-
-            {/* Update Profile Modal */}
-            {isEditModalOpen && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-                    <div className="bg-white p-5 rounded-lg shadow-lg w-96">
-                        <h2 className="text-lg font-bold mb-3">Edit Profile</h2>
-                        <form onSubmit={handleSubmit}>
-                            <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Full Name" className="w-full p-2 border mb-2" required />
-                            <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="w-full p-2 border mb-2" required />
-                            <input type="text" name="profession" value={formData.profession} onChange={handleChange} placeholder="Profession" className="w-full p-2 border mb-2" />
-                            <textarea name="about" value={formData.about} onChange={handleChange} placeholder="About" className="w-full p-2 border mb-2"></textarea>
-                            <input type="password" name="currentPassword" value={formData.currentPassword} onChange={handleChange} placeholder="Current Password (Required for password change)" className="w-full p-2 border mb-2" />
-                            <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="New Password" className="w-full p-2 border mb-2" />
-                            <button type="submit" className="w-full bg-green-500 text-white py-2 rounded hover:bg-green-600">Save Changes</button>
-                        </form>
-                        <button className="mt-3 w-full bg-red-500 text-white py-2 rounded hover:bg-red-600" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
-                    </div>
-                </div>
-            )}
-            
-            {/* Subscribers Modal */}
-            {showSubscribers && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-                    <div className="bg-white p-5 rounded-lg shadow-lg w-80">
-                        <h2 className="text-lg font-bold mb-3">Subscribers</h2>
-                        {user.subscribers.length > 0 ? (
-                            <ul>
-                                {user.subscribers.map((subscriber) => (
-                                    <li key={subscriber._id} className="border-b py-2 flex items-center">
-                                        <img src={subscriber.avatar} alt="" className="w-8 h-8 rounded-full mr-2" />
-                                        {subscriber.userName}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p>No subscribers yet.</p>
-                        )}
-                        <button
-                            className="mt-3 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            onClick={() => setShowSubscribers(false)}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
-            
-            {/* Subscribed Modal */}
-            {showSubscribed && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-                    <div className="bg-white p-5 rounded-lg shadow-lg w-80">
-                        <h2 className="text-lg font-bold mb-3">Subscribed To</h2>
-                        {user.subscribedTo.length > 0 ? (
-                            <ul>
-                                {user.subscribedTo.map((channel) => (
-                                    <li key={channel._id} className="border-b py-2 flex items-center">
-                                        <img src={channel.avatar} alt="" className="w-8 h-8 rounded-full mr-2" />
-                                        {channel.userName}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p>Not subscribed to anyone.</p>
-                        )}
-                        <button
-                            className="mt-3 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            onClick={() => setShowSubscribed(false)}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
+        <div className={`max-w-4xl mx-auto p-6 pt-36 ${isDark ? "bg-gray-900 text-white" : "bg-white text-gray-900"}`}>
+    <LeftSidebar />
+    
+    {/* Profile Header */}
+    <div className="flex flex-col items-center text-center space-y-4 bg-opacity-60 backdrop-blur-md rounded-xl p-6 shadow-lg border border-gray-300 dark:border-gray-700">
+        {/* Profile Image */}
+        <div className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-xl hover:scale-105 transition transform duration-300">
+            <img src={user.avatar} alt="Profile" className="w-full h-full" />
         </div>
+        
+        {/* User Info */}
+        <h1 className="text-3xl font-semibold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">{user.fullName}</h1>
+        <p className="text-gray-400 text-lg">{user.profession || "No profession specified"}</p>
+        <p className="text-gray-500 max-w-md leading-relaxed">{user.about}</p>
+
+        {/* Buttons */}
+        <div className="flex space-x-4 mt-4">
+            <button
+                className="px-6 py-3 rounded-lg font-medium transition-all shadow-md bg-gradient-to-r from-blue-500 to-purple-500 text-white hover:scale-105 hover:shadow-xl"
+                onClick={() => setIsEditModalOpen(true)}
+            >
+                Edit Profile
+            </button>
+            <button
+                className="px-6 py-3 rounded-lg font-medium transition-all shadow-md bg-gradient-to-r from-green-400 to-teal-500 text-white hover:scale-105 hover:shadow-xl"
+                onClick={() => navigate("/interests")}
+            >
+                Interests
+            </button>
+        </div>
+    </div>
+
+    {/* User Posts Section */}
+    <div className="mt-10">
+        <h3 className="text-2xl font-semibold mb-4 text-center">Your Posts</h3>
+        {posts?.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {posts.map((post) => <PostCard key={post._id} post={post} isDark={isDark} />)}
+            </div>
+        ) : (
+            <p className="text-gray-500 text-center">No posts available.</p>
+        )}
+    </div>
+
+    {/* Update Profile Modal */}
+    {isEditModalOpen && (
+        <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50 backdrop-blur-lg">
+            <div className="p-6 rounded-xl pt-36 shadow-xl w-96 bg-white dark:bg-gray-800 text-gray-900 dark:text-white border border-gray-300 dark:border-gray-700">
+                <h2 className="text-xl font-bold mb-3 text-center">Edit Profile</h2>
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleChange} placeholder="Full Name" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500" required />
+                    <input type="email" name="email" value={formData.email} onChange={handleChange} placeholder="Email" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500" required />
+                    <input type="text" name="profession" value={formData.profession} onChange={handleChange} placeholder="Profession" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500" />
+                    <textarea name="about" value={formData.about} onChange={handleChange} placeholder="About" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500"></textarea>
+                    <input type="password" name="currentPassword" value={formData.currentPassword} onChange={handleChange} placeholder="Current Password" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500" />
+                    <input type="password" name="newPassword" value={formData.newPassword} onChange={handleChange} placeholder="New Password" className="w-full p-3 border rounded-lg bg-transparent focus:ring-2 focus:ring-blue-500" />
+                    <button type="submit" className="w-full py-3 rounded-lg bg-green-500 hover:bg-green-600 text-white font-medium shadow-md">Save Changes</button>
+                </form>
+                <button className="mt-4 w-full py-3 rounded-lg bg-red-500 hover:bg-red-600 text-white font-medium shadow-md" onClick={() => setIsEditModalOpen(false)}>Cancel</button>
+            </div>
+        </div>
+    )}
+</div>
+
     );
 };
 

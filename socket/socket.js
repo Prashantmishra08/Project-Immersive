@@ -24,15 +24,36 @@ io.on("connection", (socket) => {
 	const userId = socket.handshake.query.userId;
 	if (userId != "undefined") userSocketMap[userId] = socket.id;
 
-	//used to send events to all the connected clients
+	// io.emit() is used to send events to all the connected clients
 	io.emit("getOnlineUsers", Object.keys(userSocketMap));
 
-	//used to listen to the events. can be used both on client and server side
+	// Edit message socket event
+socket.on("editMessage", (updatedMessage) => {
+	io.to(updatedMessage.receiverId.toString()).emit("messageEdited", updatedMessage);
+	io.to(updatedMessage.senderId.toString()).emit("messageEdited", updatedMessage);
+  });
+  
+  // Delete message socket event
+  socket.on("deleteMessage", (messageId) => {
+	io.emit("messageDeleted", messageId);
+  });
+  socket.on("typing", ({ senderId, receiverId }) => {
+	io.to(receiverId.toString()).emit("userTyping", senderId);
+  });
+  
+  socket.on("stopTyping", ({ senderId, receiverId }) => {
+	io.to(receiverId.toString()).emit("userStoppedTyping", senderId);
+  });
+
+	// socket.on() is used to listen to the events. can be used both on client and server side
 	socket.on("disconnect", () => {
 		console.log("user disconnected", socket.id);
 		delete userSocketMap[userId];
 		io.emit("getOnlineUsers", Object.keys(userSocketMap));
 	});
 });
+
+  
+  
 
 export { app, io, server };

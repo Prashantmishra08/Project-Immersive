@@ -2,6 +2,7 @@ import express from "express"
 import dotenv from "dotenv"
 import User from "./models/user.models.js"
 import { Photo } from "./models/photo.model.js"
+import Notification from "./models/notification.model.js"
 import connectDB from "./db/index.js"
 import bcrypt from "bcrypt"
 import jwt from "jsonwebtoken"
@@ -18,21 +19,25 @@ import logOutUser from "./controllers/user.controllers.js"
 import router from "./middlewares/fileretreve.js"
 import video_retreve from "./middlewares/videoretreve.js"
 import getUserChannelProfile from "./controllers/followers.controllers.js"
+import uploadPost from "./controllers/uploadPost.controller.js"
 import getSearchedUserProfile from "./controllers/searchUser.controller.js"
 import { updateProfile, updateProfilePicture } from "./controllers/updateProfile.controller.js"
 import unfollowUser from "./controllers/followersdecrese.js"
 import followUser from "./controllers/followersincrese.js"
+import {uploadCreatePost} from "./controllers/uploadcreatepost.controller.js"
 import { createPost, getAllPosts, getUserPosts, likePost, commentOnPost } from "./controllers/post.controller.js"
 import messageRoutes from "./routes/message.routes.js"
 import conversationRoutes from "./routes/conversation.routes.js"
 import { app, server } from "./socket/socket.js"
 import fileUpload from "express-fileupload"
 import Post from "./models/post.model.js"
+import Report from "./models/report.model.js"
 import protect from "./middlewares/protect.js"
 import adminProtect from "./middlewares/adminProtect.js"
 import verifyAdmin from "./middlewares/verifyAdmin.js"
 import verifyToken from "./middlewares/verifyToken.js"
 import { reportPost, reportUser, getReports, deleteReport } from "./controllers/report.controller.js"
+import { getUserDetails, getTotalPosts, getFollowersCount, getFollowingCount } from "./controllers/userdetails.controller.js"
 
 // load the .env file 
 dotenv.config({ path: './.env' })
@@ -51,8 +56,6 @@ app.use(cors({
 }));
 
 
-// Middleware for file upload
-app.use(fileUpload({ useTempFiles: true }));
 
 
 
@@ -60,6 +63,7 @@ app.use(fileUpload({ useTempFiles: true }));
 
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
+// app.use(fileUpload({ useTempFiles: true, limits: { fileSize: 50 * 1024 * 1024 } })); 
 
 
 // to use the cookies
@@ -81,35 +85,51 @@ cloudinary.config({
 
 
 
+
 // to handle the User registeration
 app.post("/api/signup", upload.single("avatar"), async (req, res) => {
-    const { fullName, userName, email, password, profession, about } = req.body;
-    if (!password) return res.status(400).send("Password is required");
-  
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const avatarLocalPath = req.file.path;
-  
-    try {
-      const response = await cloudinary.uploader.upload(avatarLocalPath, { resource_type: "image" });
-      fs.unlinkSync(avatarLocalPath);
-      
-      const newUser = new User({
-        fullName,
-        userName,
-        email,
-        password: hashedPassword,
-        profession,
-        about,
-        avatar: response.secure_url,
-      });
-      await newUser.save();
-  
-      res.json({ message: "User registered successfully", avatar: response.secure_url });
-    } catch (error) {
-        console.error("Signup Error:", error);
-      res.status(500).json({ error: error.message });
+    console.log(req.body);
+    const { fullName, userName, email, password, profession, about, interests } = req.body;
+
+    if (!password) {
+        return res.status(400).send("Password is required");
     }
-  });
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const avatarLocalPath = req.file.path; // Corrected to req.file
+    try {
+        const response = await cloudinary.uploader.upload(avatarLocalPath, {
+            resource_type: "image"
+        });
+
+        // Clean up local file after upload
+        if (fs.existsSync(avatarLocalPath)) {
+            fs.unlinkSync(avatarLocalPath);
+        }
+
+        const parsedInterests = interests ? JSON.parse(interests) : [];
+
+        const uploaded_file_link = response.secure_url;
+        const newUser = new User({
+            fullName,
+            userName,
+            email,
+            password: hashedPassword,
+            profession,
+            about,
+            avatar:uploaded_file_link,
+            interests: parsedInterests, 
+        });
+
+        await newUser.save();
+        console.log(newUser); // Logging before return to ensure execution
+        return res.json({ message: "Form Data Saved" });
+
+    } catch (error) {
+        return res.status(500).json({ Error: error.message });
+    }
+});
 
 
 // to handle the User login
@@ -133,21 +153,25 @@ app.post("/api/login", async (req, res) => {
 
         const token = jwt.sign({ _id: userFound._id, role: "user" }, process.env.ACCESS_TOKEN_SECRET, { expiresIn: "1h" });
 
+        console.log("🚀 Generated Token:", token); // ✅ Debugging
+
+
         await User.findByIdAndUpdate(userFound._id, { accessToken: token });
 
         res.status(200)
-            .cookie("accessToken", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" })
-            .json({
-                message: "Login successful",
-                token,
-                user: {
-                    _id: userFound._id,
-                    userName: userFound.userName,
-                    email: userFound.email,
-                    avatar: userFound.avatar,
-                    role: "user",
-                },
-            });
+        .cookie("accessToken", token, { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" })
+        .json({
+        message: "Login successful",
+        token, // ✅ Token bhi return kar rahe hain taaki frontend header me use kar sake
+        user: {
+            _id: userFound._id,
+            userName: userFound.userName,
+            email: userFound.email,
+            avatar: userFound.avatar,
+            role: "user",
+        },
+    });
+
     } catch (error) {
         console.error(error);
         return res.status(500).json({ message: "Internal Server Error" });
@@ -189,8 +213,8 @@ app.post("/api/admin/login", async (req, res) => {
   const { email, password } = req.body;
 
   // Static admin details (change if using a database)
-  const adminEmail = "admin@example.com";
-  const adminPassword = "securepassword";
+  const adminEmail = "admin@email.com";
+  const adminPassword = "pass";
 
   if (email !== adminEmail || password !== adminPassword) {
     return res.status(401).json({ message: "Invalid email or password" });
@@ -371,134 +395,170 @@ app.get("/api/auth/me", verifyToken, async (req, res) => {
 //     }
 //   });
 
-app.post("/api/upload/image", verifyJwt, upload.single("file"), async (req, res) => {
-    const localFilePath = req.file.path;
-    const { caption } = req.body;
+// app.post("/api/upload/image", verifyJwt, upload.single("file"), async (req, res) => {
+//     const localFilePath = req.file.path;
+//     const { caption } = req.body;
 
-    try {
-        const user = req.user;
-        if (!user) {
-            return res.status(400).send("User not found");
-        }
+//     try {
+//         const user = req.user;
+//         if (!user) {
+//             return res.status(400).send("User not found");
+//         }
 
-        const response = await cloudinary.uploader.upload(localFilePath, { resource_type: "image" });
+//         const response = await cloudinary.uploader.upload(localFilePath, { resource_type: "image" });
 
-        if (fs.existsSync(localFilePath)) {
-            fs.unlinkSync(localFilePath);
-        }
+//         if (fs.existsSync(localFilePath)) {
+//             fs.unlinkSync(localFilePath);
+//         }
 
-        const uploaded_file_link = response.secure_url;
+//         const uploaded_file_link = response.secure_url;
 
-        // ✅ Create Post in MongoDB
-        const newPost = new Post({
-            userId: user._id,
-            username: user.userName,
-            profilePic: user.profilePic,
-            postImage: uploaded_file_link,
-            fileType: "image",
-            caption: caption,
-        });
+//         // ✅ Create Post in MongoDB
+//         const newPost = new Post({
+//             userId: user._id,
+//             username: user.userName,
+//             profilePic: user.profilePic,
+//             postImage: uploaded_file_link,
+//             fileType: "image",
+//             caption: caption,
+//         });
 
-        await newPost.save();
+//         await newPost.save();
 
-        return res.json({ message: "Image uploaded and post created successfully", post: newPost });
-    } catch (error) {
-        if (fs.existsSync(localFilePath)) {
-            fs.unlinkSync(localFilePath);
-        }
-        console.log(error);
-        return res.status(500).send("Image upload failed");
-    }
+//         return res.json({ message: "Image uploaded and post created successfully", post: newPost });
+//     } catch (error) {
+//         if (fs.existsSync(localFilePath)) {
+//             fs.unlinkSync(localFilePath);
+//         }
+//         console.log(error);
+//         return res.status(500).send("Image upload failed");
+//     }
+// });
+
+
+// app.post("/api/upload/video", verifyJwt, video_upload.single("file"), async (req, res) => {
+//     const localFilePath = req.file.path;
+//     const { caption } = req.body;
+
+//     try {
+//         const user = req.user;
+//         if (!user) {
+//             return res.status(400).send("User not found");
+//         }
+
+//         const response = await cloudinary.uploader.upload(localFilePath, { resource_type: "video" });
+
+//         if (fs.existsSync(localFilePath)) {
+//             fs.unlinkSync(localFilePath);
+//         }
+
+//         const uploaded_file_link = response.secure_url;
+
+//         // ✅ Create Post in MongoDB
+//         const newPost = new Post({
+//             userId: user._id,
+//             username: user.userName,
+//             profilePic: user.profilePic,
+//             postImage: uploaded_file_link,
+//             fileType: "video",
+//             caption: file_description,
+//         });
+
+//         await newPost.save();
+
+//         return res.json({ message: "Video uploaded and post created successfully", post: newPost });
+//     } catch (error) {
+//         if (fs.existsSync(localFilePath)) {
+//             fs.unlinkSync(localFilePath);
+//         }
+//         console.log(error);
+//         return res.status(500).send("Video upload failed");
+//     }
+// });
+
+
+// app.post("/api/upload-and-create", verifyJwt, async (req, res) => {
+//   try {
+//       console.log("Incoming File:", req.files);
+//       console.log("Request Body:", req.body);
+
+//       // ✅ Fetch user details from authentication middleware
+//       if (!req.user) {
+//           return res.status(401).json({ message: "Unauthorized: User not authenticated" });
+//       }
+
+//       const { profilePic, caption } = req.body;
+//       const file = req.files?.file;
+
+//       if (!file) {
+//           return res.status(400).json({ message: "No file provided" });
+//       }
+
+//       console.log("Uploading to Cloudinary...");
+//       const uploadedFile = await cloudinary.uploader.upload(file.tempFilePath, {
+//           folder: "uploads",
+//       });
+
+//       console.log("Upload Successful:", uploadedFile.secure_url);
+
+//       // 🟢 Create Post in MongoDB
+//       const newPost = new Post({
+//           userId: req.user.id,         // ✅ Get userId from req.user
+//           username: req.user.userName, // ✅ Get username from req.user
+//           profilePic: req.user.profilePic || profilePic, // ✅ Use profilePic from DB if available
+//           postImage: uploadedFile.secure_url,
+//           fileType: file.mimetype.startsWith("image") ? "image" : "video",
+//           caption,
+//       });
+
+//       await newPost.save();
+
+//       res.status(201).json({
+//           success: true,
+//           message: "Post created successfully",
+//           post: newPost,
+//       });
+//   } catch (error) {
+//       console.error("Error Details:", error); // 🔍 Logs full error
+//   res.status(500).json({ message: "Something went wrong!", error: error.message });
+//   }
+// });
+
+app.get("/api/tags", async (req, res) => {
+  const tags = [
+    "Technology", "Programming", "Coding", "Software Development", "Web Development",
+    "Frontend", "Backend", "Full Stack", "DevOps", "Cloud Computing", "Cybersecurity",
+    "Artificial Intelligence", "Machine Learning", "Data Science", "Blockchain", "Cryptocurrency",
+    "UI/UX Design", "Mobile Development", "Open Source", "Startup", "Freelancing",
+    "Computer Science", "Networking", "Operating Systems", "Gaming", "Competitive Programming",
+    "JavaScript", "Python", "React", "Node.js", "MongoDB", "SQL", "C++", "Java",
+    "AI Ethics", "Tech News", "Hacking", "Software Engineering", "Debugging", "APIs",
+    "Automation", "Internet of Things", "Robotics", "Quantum Computing", "Linux",
+    "Science", "Physics", "Mathematics", "Entrepreneurship", "Productivity",
+    "Sports", "Music", "Travel", "Food", "Entertainment"
+  ];
+  res.json(tags);
 });
 
 
-app.post("/api/upload/video", verifyJwt, video_upload.single("file"), async (req, res) => {
-    const localFilePath = req.file.path;
-    const { caption } = req.body;
+app.get("/api/user/profile", verifyJwt, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id); // Ensure req.user exists
+    if (!user) return res.status(404).json({ success: false, message: "User not found" });
 
-    try {
-        const user = req.user;
-        if (!user) {
-            return res.status(400).send("User not found");
-        }
-
-        const response = await cloudinary.uploader.upload(localFilePath, { resource_type: "video" });
-
-        if (fs.existsSync(localFilePath)) {
-            fs.unlinkSync(localFilePath);
-        }
-
-        const uploaded_file_link = response.secure_url;
-
-        // ✅ Create Post in MongoDB
-        const newPost = new Post({
-            userId: user._id,
-            username: user.userName,
-            profilePic: user.profilePic,
-            postImage: uploaded_file_link,
-            fileType: "video",
-            caption: file_description,
-        });
-
-        await newPost.save();
-
-        return res.json({ message: "Video uploaded and post created successfully", post: newPost });
-    } catch (error) {
-        if (fs.existsSync(localFilePath)) {
-            fs.unlinkSync(localFilePath);
-        }
-        console.log(error);
-        return res.status(500).send("Video upload failed");
-    }
+    res.json({ success: true, user });
+  } catch (err) {
+    console.error("Error fetching user:", err);
+    res.status(500).json({ success: false, message: "Internal Server Error" });
+  }
 });
 
 
-app.post("/api/upload-and-create", verifyJwt, async (req, res) => {
-    try {
-        console.log("Incoming File:", req.files);
-        console.log("Request Body:", req.body);
+app.post("/api/upload-and-create", verifyJwt, uploadCreatePost);
 
-        // ✅ Fetch user details from authentication middleware
-        if (!req.user) {
-            return res.status(401).json({ message: "Unauthorized: User not authenticated" });
-        }
 
-        const { profilePic, caption } = req.body;
-        const file = req.files?.file;
 
-        if (!file) {
-            return res.status(400).json({ message: "No file provided" });
-        }
 
-        console.log("Uploading to Cloudinary...");
-        const uploadedFile = await cloudinary.uploader.upload(file.tempFilePath, {
-            folder: "uploads",
-        });
-
-        console.log("Upload Successful:", uploadedFile.secure_url);
-
-        // 🟢 Create Post in MongoDB
-        const newPost = new Post({
-            userId: req.user.id,         // ✅ Get userId from req.user
-            username: req.user.userName, // ✅ Get username from req.user
-            profilePic: req.user.profilePic || profilePic, // ✅ Use profilePic from DB if available
-            postImage: uploadedFile.secure_url,
-            fileType: file.mimetype.startsWith("image") ? "image" : "video",
-            caption,
-        });
-
-        await newPost.save();
-
-        res.status(201).json({
-            success: true,
-            message: "Post created successfully",
-            post: newPost,
-        });
-    } catch (error) {
-        console.error("Error Details:", error); // 🔍 Logs full error
-    res.status(500).json({ message: "Something went wrong!", error: error.message });
-    }
-});
 
 
 // Post APIs Endpoints
@@ -514,12 +574,43 @@ app.put("/api/like/:postId", verifyJwt, likePost); // Like Post
 app.post("/api/comment/:postId", verifyJwt, commentOnPost); // Comment on Post
 
 
+// Notification 
+app.get("/api/notifications", verifyJwt, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ userId: req.user.id })
+      .populate({
+        path: "senderId",
+        select: "userName avatar", // ✅ FIXED: Correct field names from User Model
+      })
+      .populate({
+        path: "postId",
+        select: "postImage caption", // ✅ FIXED: Correct field names from Post Model
+      })
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({ success: true, notifications });
+  } catch (error) {
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+
 // message function calling on a specific route
 
-app.use("/api/messages", messageRoutes)
+app.use("/api/messages",verifyJwt,  messageRoutes)
 
 
-app.use("/api/conversations", conversationRoutes)
+app.use("/api/conversations", verifyJwt, conversationRoutes)
+
+app.get("/api/users", async (req, res) => {
+  try {
+    const users = await User.find({ _id: { $ne: req.user.id } }); // Exclude current user
+    res.json(users);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching users" });
+  }
+});
+
 
 // File retreve function calling on a specific route
 
@@ -544,6 +635,93 @@ app.put("/api/updateprofilepicture", verifyJwt, updateProfilePicture);
 app.post('/api/follow',verifyJwt,followUser)
 
 app.post('/api/unfollow',verifyJwt,unfollowUser)
+
+
+// User Interest APIs
+
+// ✅ API to get most used tags
+app.get("/api/most-used-tags", async (req, res) => {
+  try {
+    const mostUsedTags = await Post.aggregate([
+      { $unwind: "$tags" }, // ✅ Convert tags array into separate documents
+      { $group: { _id: "$tags", count: { $sum: 1 } } }, // ✅ Count occurrences
+      { $sort: { count: -1 } }, // ✅ Sort by highest count
+      { $limit: 10 } // ✅ Limit to top 10 tags
+    ]);
+
+    res.json(mostUsedTags);
+  } catch (error) {
+    res.status(500).json({ error: "Failed to fetch most used tags" });
+  }
+});
+
+// ✅ 1️⃣ API to update user interests
+app.post("/api/users/interests", verifyJwt, async (req, res) => {
+  try {
+    const { interests } = req.body;
+    const userId = req.user._id; // ✅ Fix: Use `_id` instead of `id`
+
+    if (!Array.isArray(interests)) {
+      return res.status(400).json({ error: "Interests must be an array of strings." });
+    }
+
+    // ✅ Update interests in DB
+    const user = await User.findByIdAndUpdate(userId, { interests }, { new: true });
+
+    if (!user) {
+      return res.status(404).json({ error: "User not found." });
+    }
+
+    res.status(200).json({ message: "Interests updated successfully!", interests: user.interests });
+  } catch (error) {
+    console.error("Error updating interests:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ✅ 2️⃣ Get User Interests
+app.get('/api/interests', verifyJwt, async (req, res) => {
+    try {
+      console.log("Decoded JWT User:", req.user); // ✅ Check JWT user data
+      
+  
+      const userId = req.user._id;
+      if (!userId) {
+        return res.status(400).json({ error: "Invalid token, userId missing!" });
+      }
+      
+  
+      const user = await User.findById(userId).select("interests"); // ✅ Fetch only interests
+      
+  
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+  
+      res.status(200).json({ interests: user.interests });
+    } catch (error) {
+      console.error("Error fetching interests:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
+// ✅ 3️⃣ Update User Interests
+app.put("/api/user/interests", verifyJwt, async (req, res) => {
+  try {
+    const { interests } = req.body;
+
+    // ✅ Fix: Use `_id` correctly
+    const user = await User.findByIdAndUpdate(req.user._id, { interests }, { new: true });
+
+    res.json({ message: "Interests updated successfully", interests: user.interests });
+  } catch (error) {
+    console.error("Error updating user interests:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
 
 
 // Search any user
@@ -667,17 +845,46 @@ app.post('/api/collections/images',verifyJwt,async(req,res)=>{
 
 // For Admin
 
-app.get("/api/users", verifyAdmin, async (req, res) => {
+app.get("/api/admin/users", verifyAdmin, async (req, res) => {
   try {
-    const users = await User.find({}, "userName email role banned");
+    const users = await User.find({}, "userName email avatar");
     res.json(users);
   } catch (err) {
     res.status(500).json({ error: "Server error" });
   }
 });
 
+
+// Logout
+
+  const blacklistedTokens = new Set(); // Blacklisted tokens ko store karne ke liye
+
+app.post("/api/admin/logout", (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(400).json({ message: "No token provided" });
+  }
+
+  blacklistedTokens.add(token); // Token ko blacklist mein add karna
+
+  res.json({ message: "Admin logged out successfully" });
+});
+
+// Middleware to check blacklisted tokens
+const checkBlacklistedToken = (req, res, next) => {
+  const token = req.headers.authorization?.split(" ")[1];
+  if (blacklistedTokens.has(token)) {
+    return res.status(401).json({ message: "Token is blacklisted" });
+  }
+  next();
+};
+
+// Isko `verifyAdmin` middleware ke sath bhi use kar sakte ho
+app.use(checkBlacklistedToken);
+
 // Delete User
-app.delete("/api/users/:id", verifyAdmin, async (req, res) => {
+app.delete("/api/admin/users/:id", verifyAdmin, async (req, res) => {
   try {
     await User.findByIdAndDelete(req.params.id);
     res.json({ message: "User deleted successfully" });
@@ -687,7 +894,7 @@ app.delete("/api/users/:id", verifyAdmin, async (req, res) => {
 });
 
 // Update User Role
-app.put("/api/users/:id/role", verifyAdmin, async (req, res) => {
+app.put("/api/admin/users/:id/role", verifyAdmin, async (req, res) => {
   try {
     const { role } = req.body;
     await User.findByIdAndUpdate(req.params.id, { role });
@@ -697,7 +904,7 @@ app.put("/api/users/:id/role", verifyAdmin, async (req, res) => {
   }
 });
 
-app.put("/api/users/:id/ban", verifyAdmin, async (req, res) => {
+app.put("/api/admin/users/:id/ban", verifyAdmin, async (req, res) => {
     try {
       const { banned } = req.body;
       await User.findByIdAndUpdate(req.params.id, { banned });
@@ -707,27 +914,36 @@ app.put("/api/users/:id/ban", verifyAdmin, async (req, res) => {
     }
   });
 
-app.get("/api/posts", verifyAdmin, async (req, res) => {
+  app.get("/api/admin/posts", verifyAdmin, async (req, res) => {
+    
+    console.log("Admin Posts API hit ✅"); // ✅ Check if API is called
+    // console.log("User from Token:", req.user); // ✅ Token verify ho raha hai ya nahi
     try {
-      const posts = await Post.find().populate("author", "userName email");
+      const posts = await Post.find().populate("userId", "username avatar"); // Populate user details
+      console.log("Posts Data:", posts); // Debugging
       res.json(posts);
-    } catch (err) {
+  } catch (err) {
+      console.error("Error fetching posts:", err);
       res.status(500).json({ error: "Server error" });
-    }
+  }
   });
   
+  
   // Delete Post
-  app.delete("/api/posts/:id", verifyAdmin, async (req, res) => {
+  app.delete("/api/admin/posts/:id", verifyAdmin, async (req, res) => {
     try {
-      await Post.findByIdAndDelete(req.params.id);
+      const post = await Post.findByIdAndDelete(req.params.id);
+      if (!post) return res.status(404).json({ error: "Post not found" });
+
       res.json({ message: "Post deleted successfully" });
-    } catch (err) {
+  } catch (err) {
+      console.error("Error deleting post:", err);
       res.status(500).json({ error: "Server error" });
-    }
+  }
   });
   
   // Block/Unblock Post
-  app.put("/api/posts/:id/block", verifyAdmin, async (req, res) => {
+  app.put("/api/admin/posts/:id/block", verifyAdmin, async (req, res) => {
     try {
       const { blocked } = req.body;
       await Post.findByIdAndUpdate(req.params.id, { blocked });
@@ -737,21 +953,52 @@ app.get("/api/posts", verifyAdmin, async (req, res) => {
     }
   });
 
-  app.get("/api/stats", verifyAdmin, async (req, res) => {
+  app.get("/api/admin/stats", verifyAdmin, async (req, res) => {
     try {
-      const usersCount = await User.countDocuments();
-      const bannedUsersCount = await User.countDocuments({ banned: true });
-      const postsCount = await Post.countDocuments();
-      
-      res.json({
-        users: usersCount,
-        bannedUsers: bannedUsersCount,
-        posts: postsCount
-      });
+        console.log("Admin Stats API hit ✅"); // ✅ Check if API is called
+        console.log("User from Token:", req.user); // ✅ Check if token is valid
+
+        const usersCount = await User.countDocuments();
+        const postsCount = await Post.countDocuments();
+        const reportsCount = await Report.countDocuments(); // ✅ Reports count added
+
+        res.json({
+            users: usersCount,
+            reports: reportsCount, // ✅ Sending reports count instead of banned users
+            posts: postsCount
+        });
     } catch (err) {
-      res.status(500).json({ error: "Server error" });
+        console.error("Error in /api/admin/stats:", err); // ❌ Log error if any
+        res.status(500).json({ error: "Server error" });
+    }
+});
+
+
+  app.get('/api/admin/user/details/:userId', verifyAdmin, async (req, res) => {
+    try {
+      const { userId } = req.params;
+  
+      // Fetch user details
+      const userDetails = await getUserDetails(userId);
+  
+      // Fetch total posts, followers and following count
+      const totalPosts = await getTotalPosts(userId);
+      const followersCount = await getFollowersCount(userId);
+      const followingCount = await getFollowingCount(userId);
+  
+      const result = {
+        userDetails,
+        totalPosts,
+        followersCount,
+        followingCount
+      };
+  
+      res.status(200).json(result);
+    } catch (err) {
+      res.status(500).json({ message: 'Server error', error: err });
     }
   });
+  
 
   // User Reports a Post
 app.post("/api/reports/post/:postId", protect, reportPost);

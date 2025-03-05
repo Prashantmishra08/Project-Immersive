@@ -2,140 +2,103 @@ import { useEffect, useState } from "react";
 import axios from "axios";
 import { useParams } from "react-router-dom";
 import { useAuthContext } from "../context/AuthContext";
+import LeftSidebar from "./LeftSidebar.jsx";
+import useThemeStore from "../zustand/useThemeStore.js";
+import PostCard from "./PostCard";
 
 const SearchUserProfile = () => {
     const { userName } = useParams();
-    const [userData, setUserData] = useState(null); // Ensure state exists
-    const [showSubscribers, setShowSubscribers] = useState(false);
-    const [showSubscribed, setShowSubscribed] = useState(false);
+    const [userData, setUserData] = useState({});
+    const [userPosts, setUserPosts] = useState([]);
     const { authUser } = useAuthContext();
+    const { isDark } = useThemeStore();
+
     useEffect(() => {
         const fetchProfile = async () => {
             try {
-                const token = localStorage.getItem("token"); // Ensure token is fetched
+                const token = localStorage.getItem("token");
                 if (!token) {
                     console.error("🚨 No token found in localStorage");
                     return;
                 }
 
-                const response = await axios.get(`http://localhost:3000/api/searchuserprofile?userName=${userName}`, {
-                    headers: {
-                        Authorization: `Bearer ${token}`,
-                    },
-                });
+                const response = await axios.get(
+                    `http://localhost:3000/api/searchuserprofile?userName=${userName}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
 
-                console.log("✅ User Profile Data:", response.data);
-                setUserData(response.data.user); // Update state with fetched data
+                console.log("✅ API Response:", response.data);
+
+                if (response.data && Array.isArray(response.data.users) && response.data.users.length > 0) {
+                    setUserData(response.data.users[0]);
+                } else {
+                    console.error("⚠️ No user found in API response", response.data);
+                }
             } catch (error) {
                 console.error("❌ Error fetching user data:", error);
             }
         };
 
+        const fetchUserPosts = async () => {
+            try {
+                const token = localStorage.getItem("token");
+                if (!token) return;
+                
+                const response = await axios.get(
+                    `http://localhost:3000/api/user/${userData._id}`,
+                    { headers: { Authorization: `Bearer ${token}` } }
+                );
+                
+                setUserPosts(response.data.posts || []);
+            } catch (error) {
+                console.error("❌ Error fetching user posts:", error);
+            }
+        };
+
         fetchProfile();
-    }, [userName]);
+        fetchUserPosts();
+    }, [userName, userData._id]);
 
-    const reportUser = async () => {
-        const reason = prompt("Enter reason for reporting this user:");
-        if (!reason) return;
-        
-        try {
-          await axios.post(`http://localhost:3000/api/reports/user/${user._id}`, { reason }, { withCredentials: true });
-          alert("User reported successfully!");
-        } catch (error) {
-          alert("Error reporting user");
-        }
-      };
-
-    if (!userData) return <p>Loading profile...</p>; // Display loading state
+    if (!userData || !userData.fullName) return <p>Loading profile...</p>;
 
     return (
-        <div className="max-w-4xl mx-auto p-4">
-        <h2 className="text-2xl font-bold text-center">User Profile</h2>
-        <div className="flex flex-col items-center text-center space-y-4">
-        <div className="relative">
-                    <img src={userData.avatar} alt="Profile" className="w-24 h-24 rounded-full" />
-                </div>
-                <h1 className="text-2xl font-bold">{userData.fullName}</h1>
-                <p className="text-gray-500">{userData.profession || "No profession specified"}</p>
-                <p className="text-gray-500">{userData.about}</p>
-                <div className="flex space-x-4">
-                    <p 
-                        className="text-sm text-gray-700 cursor-pointer underline"
-                        onClick={() => setShowSubscribers(true)}
-                    >
-                        Subscribers: {userData.subscribersCount}
-                    </p>
-                    <p 
-                        className="text-sm text-gray-700 cursor-pointer underline"
-                        // onClick={() => setShowSubscribed(true)}
-                    >
-                        Subscribed: {userData.channelsSubscribedToCount}
-                    </p>
-                </div>
-                <button className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600">
-                    Subscribe
-                </button>
-                <button onClick={reportUser} className="report-btn">Report User</button>
-
-                {/* Subscribers Modal */}
-            {showSubscribers && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-                    <div className="bg-white p-5 rounded-lg shadow-lg w-80">
-                        <h2 className="text-lg font-bold mb-3">Subscribers</h2>
-                        {userData.subscribers.length > 0 ? (
-                            <ul>
-                                {userData.subscribers.map((subscriber) => (
-                                    <li key={subscriber._id} className="border-b py-2 flex items-center">
-                                        <img src={subscriber.avatar} alt="" className="w-8 h-8 rounded-full mr-2" />
-                                        {subscriber.userName}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p>No subscribers yet.</p>
-                        )}
-                        <button
-                            className="mt-3 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            onClick={() => setShowSubscribers(false)}
-                        >
-                            Close
-                        </button>
-                    </div>
-                </div>
-            )}
+        <div className={`max-w-4xl mx-auto p-6 pt-36 ${isDark ? "bg-gray-900 text-white" : "bg-white text-gray-900"}`}>
+            <LeftSidebar />
             
-            {/* Subscribed Modal */}
-            {/* {showSubscribed && (
-                <div className="fixed inset-0 flex justify-center items-center bg-black bg-opacity-50">
-                    <div className="bg-white p-5 rounded-lg shadow-lg w-80">
-                        <h2 className="text-lg font-bold mb-3">Subscribed To</h2>
-                        {userData.subscribedTo.length > 0 ? (
-                            <ul>
-                                {userData.subscribedTo.map((channel) => (
-                                    <li key={channel._id} className="border-b py-2 flex items-center">
-                                        <img src={channel.avatar} alt="" className="w-8 h-8 rounded-full mr-2" />
-                                        {channel.userName}
-                                    </li>
-                                ))}
-                            </ul>
-                        ) : (
-                            <p>Not subscribed to anyone.</p>
-                        )}
-                        <button
-                            className="mt-3 px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
-                            onClick={() => setShowSubscribed(false)}
-                        >
-                            Close
-                        </button>
-                    </div>
+            {/* Profile Header */}
+            <div className="flex flex-col items-center text-center space-y-4 bg-opacity-60 backdrop-blur-md rounded-xl p-6 shadow-lg border border-gray-300 dark:border-gray-700">
+                <h2 className="text-2xl font-bold text-center text-gray-900 dark:text-white">User Profile</h2>
+                {/* Profile Image */}
+                <div className="relative w-28 h-28 rounded-full overflow-hidden border-4 border-blue-500 shadow-xl hover:scale-105 transition transform duration-300">
+                    <img src={userData.avatar} alt="Profile" className="w-full h-full" />
                 </div>
-            )} */}
-        </div>
+                
+                {/* User Info */}
+                <h1 className="text-3xl font-semibold bg-gradient-to-r from-blue-500 to-purple-500 text-transparent bg-clip-text">{userData.fullName}</h1>
+                <p className="text-gray-400 text-lg">{userData.profession || "No profession specified"}</p>
+                <p className="text-gray-500 max-w-md leading-relaxed">{userData.about}</p>
+            </div>
+
+            {/* User Posts Section */}
+            <div className="mt-8">
+                <h3 className="text-xl font-semibold mb-4 text-center">User's Posts</h3>
+                {userPosts.length > 0 ? (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {userPosts.map((post) => (
+                            <PostCard key={post._id} post={post} isDark={isDark} />
+                        ))}
+                    </div>
+                ) : (
+                    <p className="text-gray-500 text-center">No posts available.</p>
+                )}
+            </div>
         </div>
     );
 };
 
 export default SearchUserProfile;
+
+
 
 
 // import React, { useState, useEffect } from "react";

@@ -4,15 +4,19 @@ import axios from "axios";
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const [authUser, setAuthUser] = useState(null);
+  const [authUser, setAuthUser] = useState(() => {
+    // ✅ Load token from localStorage on initial render
+    const storedUser = localStorage.getItem("authUser");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // ✅ Reload hone par token se user verify karo
     const fetchUser = async () => {
       try {
-        const token = localStorage.getItem("token"); // Check stored token
+        const token = localStorage.getItem("token");
         if (!token) {
+          console.warn("⚠️ No token found, redirecting to login.");
           setLoading(false);
           return;
         }
@@ -21,10 +25,11 @@ export const AuthProvider = ({ children }) => {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        setAuthUser(res.data); // ✅ User ka data restore karo
+        setAuthUser(res.data);
+        localStorage.setItem("authUser", JSON.stringify(res.data)); // ✅ Save user in localStorage
       } catch (error) {
-        console.error("Error fetching user:", error);
-        setAuthUser(null);
+        console.error("❌ Error fetching user:", error.response?.data || error.message);
+        logout(); // ✅ Clear storage if token is invalid
       } finally {
         setLoading(false);
       }
@@ -34,13 +39,18 @@ export const AuthProvider = ({ children }) => {
   }, []);
 
   const login = (userData, token) => {
+    console.log("✅ User logged in, storing token...");
     localStorage.setItem("token", token);
+    localStorage.setItem("authUser", JSON.stringify(userData));
     setAuthUser(userData);
   };
 
   const logout = () => {
+    console.warn("🚨 Logging out user, clearing localStorage...");
     localStorage.removeItem("token");
+    localStorage.removeItem("authUser");
     setAuthUser(null);
+    window.location.href = "/login"; // ✅ Redirect after logout
   };
 
   return (

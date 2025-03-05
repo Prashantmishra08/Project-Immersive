@@ -1,158 +1,135 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-import { useAuthContext } from "../context/AuthContext"; // Import Auth Context
+import { useAuthContext } from "../context/AuthContext"; 
+import LeftSidebar from "./LeftSidebar.jsx";
+import useThemeStore from "../zustand/useThemeStore.js";
+import { FiLogOut, FiTrash2 } from "react-icons/fi"; // Importing Icons
 
 const SettingPage = () => {
-    const [selectedOption, setSelectedOption] = useState(null);
-    const mainAreaRef = useRef(null);
-    const sidebarRef = useRef(null);
+    const [showModal, setShowModal] = useState(false);
+    const [actionType, setActionType] = useState(""); 
     const navigate = useNavigate();
-    const { setAuthUser } = useAuthContext(); // Get auth context
-    const modalRef = useRef(null);
+    const { setAuthUser } = useAuthContext();
+    const { isDark } = useThemeStore();
 
-    // Functionality for Logout
+    // Function to handle logout
     const handleLogout = async () => {
         try {
-            console.log("Attempting logout...");
-    
-            // Send logout request
-            const response = await axios.post(
-                "http://localhost:3000/api/logout",
-                {},
-                { withCredentials: true }
-            );
-    
-            console.log("Logout successful:", response.data);
-    
-            // 🔴 Remove token from localStorage
+            const response = await axios.post("http://localhost:3000/api/logout", {}, { withCredentials: true });
             localStorage.removeItem("token");
-    
-            // Clear auth state
             setAuthUser(null);
-    
-            // Redirect to login page
             navigate("/login");
-    
         } catch (error) {
-            console.error("Logout failed:", error.response?.data?.message || error.message);
-            alert("Logout failed! Please check your session or try again.");
+            alert("Logout failed! Please try again.");
         }
     };
-    
-    
 
-    // Functionality for Account Delete
+    // Function to handle account deletion
     const handleDeleteAccount = async () => {
-        const confirmDelete = window.confirm(
-            "Are you sure you want to delete your account? This action is irreversible."
-        );
-        
-        if (!confirmDelete) return;
-    
         try {
             const token = localStorage.getItem("token");
-            const response = await axios.delete(
-                "http://localhost:3000/api/delete-account",{ 
-                    headers: { Authorization: `Bearer ${token}` },
-                    withCredentials: true 
-                });
-    
-            console.log("Account deleted successfully:", response.data);
-    
-            // Remove token and auth state
+            await axios.delete("http://localhost:3000/api/delete-account", { 
+                headers: { Authorization: `Bearer ${token}` },
+                withCredentials: true 
+            });
+
             localStorage.removeItem("token");
             setAuthUser(null);
-    
-            // Redirect to home or login page
             navigate("/login");
-    
         } catch (error) {
-            console.error("Account deletion failed:", error.response?.data?.message || error.message);
             alert("Failed to delete account. Please try again.");
         }
     };
-    
 
-    // Handle click outside the content area
-    const handleClickOutside = (event) => {
-        if (modalRef.current && !modalRef.current.contains(event.target)) {
-            closeModal();
+    // Function to handle modal actions
+    const handleConfirmAction = () => {
+        if (actionType === "logout") {
+            handleLogout();
+        } else if (actionType === "delete") {
+            handleDeleteAccount();
         }
+        setShowModal(false);
     };
-    
-    useEffect(() => {
-        document.addEventListener("click", handleClickOutside);
-        return () => document.removeEventListener("click", handleClickOutside);
-    }, []);
 
     return (
-        <div className="flex h-screen">
-            {/* Main Area */}
-            <div className="flex-1 relative p-6 bg-gray-50">
-                {selectedOption && (
-                    <div ref={mainAreaRef} className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white shadow-lg rounded p-6 w-96 text-center">
-                        {selectedOption === "logout" && (
-                            <>
-                                <h2 className="text-2xl font-bold mb-4">Logout</h2>
-                                <p className="text-gray-700 mb-4">
-                                    Are you sure you want to log out? 
-                                </p>
-                                <button
-                                    onClick={handleLogout}
-                                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                                >
-                                    Confirm Logout
-                                </button>
-                            </>
-                        )}
-
-                        {selectedOption === "deleteAccount" && (
-                            <>    
-                                <h2 className="text-2xl font-bold mb-4 text-gray-700">Delete Account</h2>
-                                <p className="text-gray-700 mb-4">
-                                    Deleting your account is a permanent action. All your data will be erased.
-                                </p>
-                                <button
-                                    onClick={handleDeleteAccount}
-                                    className="px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600"
-                                >
-                                    Confirm Delete Account
-                                </button>
-                            </>
-                        )}
+        <div className={`flex h-screen pt-28 pl-60 ${isDark ? "bg-gray-900 text-white" : "bg-gray-50 text-gray-900"}`}>
+            <LeftSidebar />
+            
+            {/* Main Content */}
+            <div className="flex flex-1 items-center justify-center p-6">
+                <div className="grid gap-6 sm:grid-cols-1 md:grid-cols-2 lg:grid-cols-2">
+                    
+                    {/* Logout Card */}
+                    <div 
+                        className={`max-w-sm rounded-2xl shadow-lg p-6 text-center transform transition duration-300 hover:scale-105 
+                            ${isDark ? "bg-gray-800 text-white border-gray-700" : "bg-white text-gray-900 border-gray-300"}
+                            backdrop-blur-md bg-opacity-100`} 
+                    >
+                        <FiLogOut className="text-blue-500 text-5xl mx-auto mb-3" />
+                        <h2 className="text-2xl font-bold mb-4">Logout</h2>
+                        <p className={`${isDark ? "text-gray-300" : "text-gray-700"} mb-4`}>
+                            Want to logout? Click below.
+                        </p>
+                        <button 
+                            onClick={() => { setActionType("logout"); setShowModal(true); }}
+                            className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition duration-200 transform hover:scale-105"
+                        >
+                            Logout
+                        </button>
                     </div>
-                )}
 
-                {!selectedOption && (
-                    <div className="text-gray-600 italic absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white shadow-lg rounded p-6 w-96 text-center">
-                        Select an option from the right to proceed.
+                    {/* Delete Account Card */}
+                    <div 
+                        className={`max-w-sm rounded-2xl shadow-lg p-6 text-center transform transition duration-300 hover:scale-105 
+                            ${isDark ? "bg-gray-800 text-white border-gray-700" : "bg-white text-gray-900 border-gray-300"}
+                            backdrop-blur-md bg-opacity-100`} 
+                    >
+                        <FiTrash2 className="text-red-500 text-5xl mx-auto mb-3" />
+                        <h2 className="text-2xl font-bold mb-4">Delete Account</h2>
+                        <p className={`${isDark ? "text-gray-300" : "text-gray-700"} mb-4`}>
+                            This action is permanent. Proceed with caution.
+                        </p>
+                        <button 
+                            onClick={() => { setActionType("delete"); setShowModal(true); }}
+                            className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200 transform hover:scale-105"
+                        >
+                            Delete Account
+                        </button>
                     </div>
-                )}
+
+                </div>
             </div>
 
-            {/* Right Sidebar */}
-            <div className="w-64 border-r bg-gray-100" ref={sidebarRef}>
-                <h2 className="text-lg font-bold p-4">Settings</h2>
-                <ul>
-                    <li
-                        onClick={() => setSelectedOption("logout")}
-                        className={`p-4 cursor-pointer ${
-                            selectedOption === "logout" ? "bg-blue-100 text-blue-700" : "hover:bg-gray-200"
-                        }`}
-                    >
-                        Logout
-                    </li>
-                    <li
-                        onClick={() => setSelectedOption("deleteAccount")}
-                        className={`p-4 cursor-pointer ${
-                            selectedOption === "deleteAccount" ? "bg-red-100 text-gray-700" : "hover:bg-gray-200"
-                        }`}
-                    >
-                        Delete Account
-                    </li>
-                </ul>
-            </div>
+            {/* Confirmation Modal */}
+            {showModal && (
+                <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
+                    <div className={`p-6 rounded-lg shadow-lg w-96 text-center ${isDark ? "bg-gray-800 text-white" : "bg-white text-gray-900"}`}>
+                        <h2 className="text-xl font-semibold mb-4">
+                            {actionType === "logout" ? "Confirm Logout" : "Confirm Deletion"}
+                        </h2>
+                        <p className="mb-4">
+                            {actionType === "logout"
+                                ? "Are you sure you want to logout?"
+                                : "Are you sure you want to delete your account? This action is irreversible."}
+                        </p>
+                        <div className="flex justify-center gap-4">
+                            <button 
+                                onClick={handleConfirmAction}
+                                className="px-5 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition duration-200"
+                            >
+                                Confirm
+                            </button>
+                            <button 
+                                onClick={() => setShowModal(false)}
+                                className="px-5 py-2 bg-gray-400 text-white rounded-lg hover:bg-gray-500 transition duration-200"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useAuthContext } from "../../context/AuthContext";
 import { useNavigate, Navigate } from "react-router-dom";
+import codeConnect from "../../assets/codeConnect.png";
 import axios from "axios";
 
 const AdminLogin = () => {
@@ -36,7 +37,10 @@ const AdminLogin = () => {
   return (
     <div className="flex justify-center items-center min-h-screen bg-gray-900 text-white">
       <form onSubmit={handleLogin} className="bg-gray-800 p-6 rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4">Admin Login</h2>
+      <div className="text-center">
+            <img src={codeConnect} alt="codeConnect Logo" className="w-[150px] h-[150px] mx-auto rounded-full" />
+            <h2 className="text-center font-bold text-xl mb-4">Admin Login</h2>
+      </div>
         {error && <p className="text-red-500">{error}</p>}
         <input
           type="email"

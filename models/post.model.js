@@ -4,10 +4,15 @@ const postSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
   username: { type: String, required: true },
   profilePic: { type: String, required: true },
-  postImage: { type: String, required: true }, // Image URL
+  postImage: { type: String }, // 
   caption: { type: String, required: true },
-  fileUrl: { type: String }, // ✅ Added file URL (image/video)
-  fileType: { type: String, enum: ["image", "video"] }, // ✅ Added file type (optional)
+  fileUrl: { type: String, required: true }, 
+  fileType: { 
+    type: String, 
+    enum: ["image/png", "image/jpeg", "image/jpg", "video/mp4", "video/mov"], 
+    required: true 
+  },
+  tags: [{ type: String }], 
   likes: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
   comments: [
     {

@@ -6,3 +6,8 @@
     --radius: 0.5rem
   }
 }
+/* Ensure dark mode applies */
+.dark {
+  background-color: #1a202c; /* Tailwind dark background */
+  color: white;
+}

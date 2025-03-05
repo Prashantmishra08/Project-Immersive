@@ -20,7 +20,7 @@ const LogIn = () => {
     // ✅ Redirect if already logged in
     useEffect(() => {
         if (authUser !== null) {
-            navigate("/feed");
+            navigate("/");
         }
     }, [authUser, navigate]);
 
@@ -43,11 +43,13 @@ const LogIn = () => {
                 // ✅ Store session details
                 localStorage.setItem("token", response.data.token);
                 localStorage.setItem("userId", response.data.user._id || "");
+                localStorage.setItem("username", response.data.user.userName);
+                localStorage.setItem("avatar", response.data.user.avatar);
 
                 setAuthUser(response.data.user);
 
                 setMessage("✅ Login successful! Redirecting...");
-                setTimeout(() => navigate("/feed"), 1);
+                setTimeout(() => navigate("/"), 1);
             }
         } catch (error) {
             setLoading(false);
@@ -104,9 +106,9 @@ const LogIn = () => {
                         required
                         className="w-full p-2 mt-1 bg-gray-700 border border-gray-600 rounded focus:outline-none"
                     />
-                    <Link to="/forgot-password" className="text-blue-500 text-sm block mt-1">
+                    {/* <Link to="/forgot-password" className="text-blue-500 text-sm block mt-1">
                         Forgot password?
-                    </Link>
+                    </Link> */}
                 </div>
 
                 <div>

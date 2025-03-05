@@ -1,5 +1,6 @@
 import Post from  "../models/post.model.js"
 import User from  "../models/user.models.js"
+import Notification from "../models/notification.model.js"
 import multer from "multer";
 
 const upload = multer({ dest: "uploads/" }); // ✅ Temporary storage for uploaded files
@@ -14,7 +15,7 @@ export const createPost = async (req, res) => {
     const newPost = new Post({
       userId,
       username,
-      avatar,
+      profilePic: avatar,
       postImage: fileUrl,  // ✅ Ensure fileUrl is stored here
       fileUrl,
       fileType,
@@ -51,7 +52,7 @@ export const getAllPosts = async (req, res) => {
 export const getUserPosts = async (req, res) => {
   try {
     const { userId } = req.params;
-    const posts = await Post.find({ userId }).sort({ createdAt: -1 });
+    const posts = await Post.find({ userId }).sort({ createdAt: -1 }).populate("userId", "userName avatar");;
 
     res.status(200).json({ success: true, posts });
   } catch (error) {
@@ -68,14 +69,26 @@ export const likePost = async (req, res) => {
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    if (post.likes.includes(userId)) {
+    let isLiked = post.likes.includes(userId);
+    if (isLiked) {
       post.likes = post.likes.filter((id) => id.toString() !== userId);
     } else {
       post.likes.push(userId);
+
+      // Send Notification
+      if (post.userId.toString() !== userId) {
+        await Notification.create({
+          userId: post.userId, // Post owner
+          senderId: userId,
+          type: "like",
+          postId,
+          message: "liked your post",
+        });
+      }
     }
 
     await post.save();
-    res.status(200).json({ message: "Post like updated", likes: post.likes.length }); // ✅ Only return count
+    res.status(200).json({ message: "Post like updated", likes: post.likes.length });
   } catch (error) {
     res.status(500).json({ message: "Failed to like post", error });
   }
@@ -95,18 +108,25 @@ export const commentOnPost = async (req, res) => {
     const post = await Post.findById(postId);
     if (!post) return res.status(404).json({ message: "Post not found" });
 
-    const newComment = {
-      userId,
-      username: user.userName,
-      comment,
-    };
-
+    const newComment = { userId, username: user.userName, comment };
     post.comments.push(newComment);
     await post.save();
 
-    res.status(201).json({ message: "Comment added", comments: post.comments }); // ✅ Return updated comments
+    // Send Notification
+    if (post.userId.toString() !== userId) {
+      await Notification.create({
+        userId: post.userId,
+        senderId: userId,
+        type: "comment",
+        postId,
+        message: `commented: "${comment}" on your post`,
+      });
+    }
+
+    res.status(201).json({ message: "Comment added", comments: post.comments });
   } catch (error) {
     res.status(500).json({ message: "Failed to add comment", error });
   }
 };
+
 

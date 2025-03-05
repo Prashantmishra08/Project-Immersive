@@ -6,16 +6,15 @@ const getUserChannelProfile = async (req, res) => {
     try {
         console.log("Incoming Request:", req.user);
 
-        if (!req.user || !req.user.userName) {
-            return res.status(400).send("User is not authenticated or username is missing");
+        if (!req.user || !req.user.userName || !req.user._id) {
+            return res.status(400).json({ message: "User authentication failed or missing data" });
         }
 
-        const userName = req.user.userName.toLowerCase();
-        console.log("Fetching user profile for:", userName);
-        const userId = new mongoose.Types.ObjectId(req.user._id);  
+        const userName = req.user.userName.trim().toLowerCase();
+        const userId = new mongoose.Types.ObjectId(req.user._id);
 
-        if (!userName?.trim()) {
-            return res.status(400).send("Username is missing");
+        if (!userName) {
+            return res.status(400).json({ message: "Username is missing" });
         }
 
         const channel = await User.aggregate([
@@ -43,11 +42,7 @@ const getUserChannelProfile = async (req, res) => {
                     subscribersCount: { $size: "$subscribers" },
                     channelsSubscribedToCount: { $size: "$subscribedTo" },
                     isSubscribed: {
-                        $cond: {
-                            if: { $in: [userId, "$subscribers.subscriber"] },
-                            then: true,
-                            else: false
-                        }
+                        $in: [userId, "$subscribers.subscriber"]
                     },
                     subscriberList: "$subscribers.subscriber",
                     subscribedToList: "$subscribedTo.channel"
@@ -70,8 +65,8 @@ const getUserChannelProfile = async (req, res) => {
             }
         ]);
 
-        if (!channel?.length) {
-            return res.status(404).send("Channel does not exist");
+        if (!channel.length) {
+            return res.status(404).json({ message: "Channel does not exist" });
         }
 
         // Fetch user details for subscribers
@@ -86,6 +81,7 @@ const getUserChannelProfile = async (req, res) => {
         );
 
         return res.status(200).json({
+            success: true,
             message: "User channel fetched successfully",
             channel: {
                 ...channel[0],
@@ -96,8 +92,9 @@ const getUserChannelProfile = async (req, res) => {
 
     } catch (error) {
         console.error("Error fetching user channel:", error);
-        return res.status(500).send("Internal Server Error");
+        return res.status(500).json({ message: "Internal Server Error" });
     }
 };
+
 
 export default getUserChannelProfile;
