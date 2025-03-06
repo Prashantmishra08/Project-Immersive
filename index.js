@@ -554,7 +554,10 @@ app.get("/api/user/profile", verifyJwt, async (req, res) => {
 });
 
 
-app.post("/api/upload-and-create", verifyJwt, uploadCreatePost);
+app.post("/api/upload-and-create", verifyJwt, fileUpload({
+  useTempFiles: true,
+  limits: { fileSize: 50 * 1024 * 1024 }
+}), uploadCreatePost);
 
 
 
