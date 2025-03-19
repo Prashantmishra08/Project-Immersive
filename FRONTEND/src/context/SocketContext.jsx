@@ -15,11 +15,10 @@ export const SocketContextProvider = ({ children }) => {
 
 	useEffect(() => {
 		if (authUser) {
-			const socket = io("http://localhost:5173", {
-				query: {
-					userId: authUser._id,
-				},
-			});
+			const socket = io("http://localhost:3000", {
+                query: { userId: authUser._id },
+                withCredentials: true,
+            });
 
 			setSocket(socket);
 

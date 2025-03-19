@@ -26,11 +26,12 @@ const Messages = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // ✅ Ensure scroll always goes to the last message on load and new messages
   useEffect(() => {
     if (messagesArray.length > 0) {
       setTimeout(() => {
         lastMessageRef.current?.scrollIntoView({ behavior: "smooth" });
-      }, 1);
+      }, 300); // Small delay to wait for messages to render
     }
   }, [messagesArray]);
 
@@ -101,7 +102,7 @@ const Messages = () => {
       }`}
     >
       {!loading && messagesArray.length > 0 ? (
-        messagesArray.map((message) => {
+        messagesArray.map((message, index) => {
           const fromMe = message.senderId === authUser._id;
           const messageAlignment = fromMe ? "justify-end" : "justify-start";
           const bubbleBgColor = fromMe
@@ -112,11 +113,12 @@ const Messages = () => {
             ? "bg-gray-700 text-white"
             : "bg-gray-200 text-black";
           const bubbleSide = fromMe ? "ml-auto" : "mr-auto";
+          const isLastMessage = index === messagesArray.length - 1; // ✅ Last message check
 
           return (
             <div
               key={message._id}
-              ref={lastMessageRef}
+              ref={isLastMessage ? lastMessageRef : null} // ✅ Apply ref only to last message
               className={`flex ${messageAlignment}`}
               onMouseEnter={() => setHoveredMessage(message._id)}
               onMouseLeave={() => setHoveredMessage(null)}
@@ -158,12 +160,14 @@ const Messages = () => {
                       <FaEdit />
                     </button>
                   )}
-                  <button
-                    onClick={() => handleDelete(message._id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <FaTrash />
-                  </button>
+                  {fromMe && (
+                    <button
+                      onClick={() => handleDelete(message._id)}
+                      className="text-red-500 hover:text-red-700"
+                    >
+                      <FaTrash />
+                    </button>
+                  )}
                 </div>
 
                 {hoveredMessage === message._id && (

@@ -7,10 +7,11 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
 	cors: {
-		origin: ["http://localhost:3000"],
-		methods: ["GET", "POST"],
+	  origin: "http://localhost:5173", // Ye frontend ka port hai
+	  methods: ["GET", "POST"],
+	  credentials: true,
 	},
-});
+  });
 
 export const getReceiverSocketId = (receiverId) => {
 	return userSocketMap[receiverId];
@@ -57,3 +58,29 @@ socket.on("editMessage", (updatedMessage) => {
   
 
 export { app, io, server };
+
+
+// import { Server } from "socket.io";
+// import http from "http";
+// import express from "express";
+
+// const app = express();
+// const server = http.createServer(app);
+
+// const io = new Server(server, {
+//   cors: {
+//     origin: "http://localhost:5173", // Ye frontend ka port hai
+//     methods: ["GET", "POST"],
+//     credentials: true,
+//   },
+// });
+
+// io.on("connection", (socket) => {
+//   console.log("🔥 User connected:", socket.id);
+
+//   socket.on("disconnect", () => {
+//     console.log("❌ User disconnected:", socket.id);
+//   });
+// });
+
+// export { app, server, io };

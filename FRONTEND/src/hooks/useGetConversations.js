@@ -52,13 +52,13 @@ const useGetConversations = () => {
           return;
         }
 
-        console.log("Using Token:", token);
+        // console.log("Using Token:", token);
 
         const res = await axios.get("http://localhost:3000/api/conversations", {
           headers: { Authorization: `Bearer ${token}` },
         });
 
-        console.log("Response Data:", res.data);
+        // console.log("Response Data:", res.data);
 
         if (isMounted) {
           if (Array.isArray(res.data)) {

@@ -1039,6 +1039,6 @@ app.delete("/api/reports/:reportId", adminProtect, deleteReport);
 
 // listener on specific port on which the server is running
 
-app.listen(process.env.PORT, () => {
+server.listen(process.env.PORT, () => {
     console.log("Server started on port", process.env.PORT)
 })
